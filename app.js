@@ -232,8 +232,8 @@ async function renderWeek() {
     ctx.textAlign="center"; ctx.textBaseline="top"; ctx.fillStyle="#737a76";
     records.forEach((r,i) => ctx.fillText(fmt(r.date,{month:"numeric",day:"numeric"}), x(i), h-bottom+8));
     ctx.textAlign="left";
-    ctx.fillStyle="#477d72"; ctx.fillRect(left,3,8,8); ctx.fillStyle="#505653"; ctx.fillText("朝",left+12,2);
-    ctx.fillStyle="#b77b58"; ctx.fillRect(left+43,3,8,8); ctx.fillStyle="#505653"; ctx.fillText("夕",left+55,2);
+    ctx.fillStyle="#477d72"; ctx.fillRect(left,3,8,8); ctx.fillStyle="#505653"; ctx.fillText("午前",left+12,2);
+    ctx.fillStyle="#b77b58"; ctx.fillRect(left+43,3,8,8); ctx.fillStyle="#505653"; ctx.fillText("午後",left+55,2);
   }
   function csvEscape(value) {
     const s = String(value ?? "");

@@ -308,7 +308,7 @@ async function renderWeek() {
     $("dailyComment").addEventListener("input", () => { $("commentCount").textContent = `${$("dailyComment").value.length} / 500`; scheduleSave(); });
     $("saveBtn").addEventListener("click", () => saveDraft(true));
     $("weekPrev").addEventListener("click", async () => { weekOffset--; await renderWeek(); });
-    $("weekNext").addEventListener("click", async () => { if(weekOffset<0) weekOffset++; await renderWeek(); });
+    $("weekNext").addEventListener("click", async () => {weekOffset++ await renderWeek();});
     $("exportBtn").addEventListener("click", exportCSV);
     $("importBtn").addEventListener("click", () => $("importFile").click());
     $("importFile").addEventListener("change", async e => {

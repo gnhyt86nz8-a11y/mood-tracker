@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f5f4f0">
+  <meta name="description" content="気分と欲求を朝・夕に記録し、一週間の変化を振り返る個人用アプリ">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./icon.svg">
+  <link rel="stylesheet" href="./style.css">
+  <title>気分と欲求の記録</title>
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <p class="eyebrow">PERSONAL TRACKER</p>
+      <h1>気分と欲求の記録</h1>
+    </div>
+    <button id="todayBtn" class="quiet-button" type="button">今日へ</button>
+  </header>
+
+  <main>
+    <section class="panel date-panel" aria-labelledby="dateHeading">
+      <div class="date-row">
+        <button id="prevDay" class="nav-button" aria-label="前の日" type="button">‹</button>
+        <div class="date-center">
+          <h2 id="dateHeading">今日の記録</h2>
+          <label class="date-label" for="recordDate">日付を選択</label>
+          <input id="recordDate" type="date">
+        </div>
+        <button id="nextDay" class="nav-button" aria-label="次の日" type="button">›</button>
+      </div>
+      <p id="saveStatus" class="status" role="status">記録はこのiPhone内に保存されます。</p>
+    </section>
+
+    <section class="panel" aria-labelledby="morningHeading">
+      <div class="section-heading">
+        <div><p class="eyebrow">MORNING</p><h2 id="morningHeading">朝</h2></div>
+        <span id="morningSaved" class="saved-label">未記録</span>
+      </div>
+      <div class="field-group">
+        <div class="field-title"><label>気分</label><output id="morningMoodOutput" for="morningMood">0</output></div>
+        <p class="hint">−3 とても悪い　／　0 ふつう　／　＋3 とても良い</p>
+        <div class="scale mood-scale" id="morningMoodChoices" role="group" aria-label="朝の気分"></div>
+      </div>
+      <div class="field-group">
+        <div class="field-title"><label>欲求</label><output id="morningUrgeOutput" for="morningUrge">0</output></div>
+        <p class="hint">0 なし　／　1 弱い　／　2 強い　／　3 非常に強い</p>
+        <div class="scale urge-scale" id="morningUrgeChoices" role="group" aria-label="朝の欲求"></div>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="eveningHeading">
+      <div class="section-heading">
+        <div><p class="eyebrow">EVENING</p><h2 id="eveningHeading">夕</h2></div>
+        <span id="eveningSaved" class="saved-label">未記録</span>
+      </div>
+      <div class="field-group">
+        <div class="field-title"><label>気分</label><output id="eveningMoodOutput" for="eveningMood">0</output></div>
+        <p class="hint">−3 とても悪い　／　0 ふつう　／　＋3 とても良い</p>
+        <div class="scale mood-scale" id="eveningMoodChoices" role="group" aria-label="夕方の気分"></div>
+      </div>
+      <div class="field-group">
+        <div class="field-title"><label>欲求</label><output id="eveningUrgeOutput" for="eveningUrge">0</output></div>
+        <p class="hint">0 なし　／　1 弱い　／　2 強い　／　3 非常に強い</p>
+        <div class="scale urge-scale" id="eveningUrgeChoices" role="group" aria-label="夕方の欲求"></div>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="commentHeading">
+      <div class="section-heading">
+        <div><p class="eyebrow">DAILY NOTE</p><h2 id="commentHeading">今日の一言</h2></div>
+        <span class="small-note">1日につき1件</span>
+      </div>
+      <textarea id="dailyComment" rows="3" maxlength="500" placeholder="出来事、きっかけ、気づいたことなど"></textarea>
+      <div class="comment-footer"><span id="commentCount">0 / 500</span><button id="saveBtn" class="primary-button" type="button">この日の記録を保存</button></div>
+    </section>
+
+    <section class="panel week-panel" aria-labelledby="weekHeading">
+      <div class="section-heading">
+        <div><p class="eyebrow">LAST 7 DAYS</p><h2 id="weekHeading">一週間の一覧</h2></div>
+        <button id="weekPrev" class="quiet-button" type="button">前の週</button>
+      </div>
+      <p id="weekRange" class="hint"></p>
+      <div class="chart-wrap">
+        <h3>気分の推移</h3>
+        <canvas id="moodChart" height="180" aria-label="気分の推移グラフ"></canvas>
+      </div>
+      <div class="chart-wrap">
+        <h3>欲求の推移</h3>
+        <canvas id="urgeChart" height="160" aria-label="欲求の推移グラフ"></canvas>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>日付</th><th>朝 気分/欲求</th><th>夕 気分/欲求</th><th>一言</th></tr></thead>
+          <tbody id="weekTable"></tbody>
+        </table>
+      </div>
+      <button id="weekNext" class="secondary-button" type="button">次の週</button>
+    </section>
+
+    <section class="panel data-panel" aria-labelledby="dataHeading">
+      <div class="section-heading"><div><p class="eyebrow">YOUR DATA</p><h2 id="dataHeading">データの管理</h2></div></div>
+      <p class="hint">記録はこのブラウザ内に保存され、外部サーバーには送信されません。端末の故障やブラウザデータ削除に備え、定期的にCSVを書き出してください。</p>
+      <div class="button-row">
+        <button id="exportBtn" class="secondary-button" type="button">CSVを書き出す</button>
+        <button id="importBtn" class="secondary-button" type="button">CSVを読み込む</button>
+        <input id="importFile" type="file" accept=".csv,text/csv" hidden>
+      </div>
+      <p id="dataStatus" class="status" role="status"></p>
+    </section>
+  </main>
+  <footer><p>このアプリは診断や治療の代わりではなく、日々の振り返りを助ける記録ツールです。</p><p id="offlineStatus">オフライン機能を確認中…</p></footer>
+  <script src="./app.js" defer></script>
+</body>
+</html>

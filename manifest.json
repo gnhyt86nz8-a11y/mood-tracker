@@ -1,0 +1,19 @@
+{
+  "name": "気分と欲求の記録",
+  "short_name": "気分と欲求",
+  "description": "気分と欲求を朝・夕に記録し、一週間の変化を振り返る個人用アプリ",
+  "lang": "ja",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f4f0",
+  "theme_color": "#f5f4f0",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

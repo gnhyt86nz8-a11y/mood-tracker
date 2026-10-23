@@ -307,13 +307,7 @@ async function renderWeek() {
     $("todayBtn").addEventListener("click", () => { weekOffset=0; loadDate(dateKey(new Date())); renderWeek(); });
     $("dailyComment").addEventListener("input", () => { $("commentCount").textContent = `${$("dailyComment").value.length} / 500`; scheduleSave(); });
     $("saveBtn").addEventListener("click", () => saveDraft(true));
-    $("weekPrev").addEventListener("click", async () => {
-  console.log("前の週ボタン押下前:", weekOffset);
-  weekOffset--;
-  console.log("前の週ボタン押下後:", weekOffset);
-  await renderWeek();
-  console.log("週表示更新完了");
-});
+    $("weekPrev").addEventListener("click", async () => { weekOffset--; await renderWeek(); });
 $("weekNext").addEventListener("click", async () => { weekOffset++; await renderWeek(); });
     $("exportBtn").addEventListener("click", exportCSV);
     $("importBtn").addEventListener("click", () => $("importFile").click());

@@ -157,17 +157,17 @@
     return String(s ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch]));
   }
 async function renderWeek() {
-  // 週間一覧は水曜日から火曜日まで
-  const today = fromKey(dateKey(new Date()));
-  const daysSinceTuesday = (today.getDay() - 2 + 7) % 7;
-  const end = dateKey(new Date(
+  const today = new Date();
+  const daysSinceWednesday = (today.getDay() - 3 + 7) % 7;
+  const startDate = new Date(
     today.getFullYear(),
     today.getMonth(),
-    today.getDate() - daysSinceTuesday + weekOffset * 7,
+    today.getDate() - daysSinceWednesday + weekOffset * 7,
     12
-  ));
-  const start = shiftDate(end, -6);
-    $("weekRange").textContent = `${fmt(start)} 〜 ${fmt(end)}（水〜火）`;
+  );
+  const start = dateKey(startDate);
+  const end = shiftDate(start, 6);
+  $("weekRange").textContent = `${fmt(start)} 〜 ${fmt(end)}（水〜火）`;    
     const all = await getAllRecords();
     const map = new Map(all.map(r => [r.date, r]));
     const rows = [];

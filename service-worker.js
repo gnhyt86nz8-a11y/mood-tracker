@@ -1,4 +1,4 @@
-const CACHE_NAME = "mood-tracker-v2";
+const CACHE_NAME = "mood-tracker-v3";
 const APP_FILES = [
   "./",
   "./index.html",

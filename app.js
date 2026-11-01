@@ -336,7 +336,10 @@ document.addEventListener("visibilitychange", () => {
     await renderWeek();
     if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
         navigator.serviceWorker.register("./service-worker.js")
-          .then(() => { $("offlineStatus").textContent = "オフライン機能：キャッシュを準備しています。初回はオンラインで開いたままお待ちください。"; })
+          .then(async registration => {
+  await registration.update();
+  $("offlineStatus").textContent = "オフライン機能：更新を確認しました。";
+})
           .catch(() => { $("offlineStatus").textContent = "オフライン機能の準備に失敗しました。オンラインで再読み込みしてください。"; });
       } else {
         $("offlineStatus").textContent = "オフライン機能を利用するにはHTTPSで開いてください。";

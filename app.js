@@ -315,9 +315,16 @@ $("weekNext").addEventListener("click", async () => { weekOffset++; await render
       const file=e.target.files?.[0]; if(!file) return;
       try { await importCSV(file); } catch(err) { $("dataStatus").textContent = err.message || "読み込みに失敗しました。"; }
       e.target.value="";
-    });
-    window.addEventListener("resize", () => renderWeek());
-    document.addEventListener("visibilitychange", () => { if(document.visibilityState === "hidden") flushSave(); });
+    });window.addEventListener("resize", () => renderWeek());
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") {
+    flushSave();
+  } else if (document.visibilityState === "visible") {
+    weekOffset = 0;
+    loadDate(dateKey(new Date()));
+    renderWeek();
+  }
+});
   }
   async function main() {
     setupEvents();

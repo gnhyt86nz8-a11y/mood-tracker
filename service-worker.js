@@ -1,17 +1,18 @@
-const CACHE_NAME = "mood-tracker-v3";
+const CACHE_NAME = "mood-tracker-v4";
 const APP_FILES = [
   "./",
   "./index.html",
   "./style.css",
   "./app.js",
   "./manifest.json",
-  "./icon.svg"
+  "./icon.svg",
+  "./icon-180.png"
 ];
 
 self.addEventListener("install", event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(APP_FILES))
+      .then(cache => cache.addAll(APP_FILES.map(path => new Request(new URL(path, self.registration.scope), { cache: "reload" }))))
       .then(() => self.skipWaiting())
   );
 });
@@ -36,9 +37,9 @@ self.addEventListener("fetch", event => {
   if (url.origin !== self.location.origin) return;
 
   event.respondWith(
-    fetch(request)
+    fetch(request, { cache: "no-store" })
       .then(response => {
-        if (response && response.ok) {
+        if (response && response.status === 200) {
           const copy = response.clone();
           event.waitUntil(
             caches.open(CACHE_NAME).then(cache => cache.put(request, copy))
@@ -50,7 +51,7 @@ self.addEventListener("fetch", event => {
         const cached = await caches.match(request);
         if (cached) return cached;
 
-        if (request.mode === "navigate") {
+        if (request.mode === "navigate" && (url.pathname === new URL("./", self.registration.scope).pathname || url.pathname === new URL("./index.html", self.registration.scope).pathname)) {
           const fallback = await caches.match("./index.html");
           if (fallback) return fallback;
         }

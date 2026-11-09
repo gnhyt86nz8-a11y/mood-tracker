@@ -291,7 +291,10 @@ async function renderWeek() {
     return `"${s.replace(/"/g, '""')}"`;
   }
   async function exportCSV() {
-    await flushSave();
+    if (!(await flushSave())) {
+      $("dataStatus").textContent = "未保存の変更があるため、CSV書き出しを中止しました。";
+      return;
+    }
     const records = (await getAllRecords()).sort((a,b)=>a.date.localeCompare(b.date));
     const header = ["date","morning_mood","morning_urge","evening_mood","evening_urge","comment","updated_at"];
     const lines = [header.map(csvEscape).join(",")];
@@ -303,7 +306,7 @@ async function renderWeek() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url; a.download = `mood-urge-records-${dateKey(new Date())}.csv`;
-    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
     $("dataStatus").textContent = `${records.length}日分のCSVを書き出しました。`;
   }
   function parseCSV(text) {

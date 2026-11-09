@@ -15,6 +15,11 @@
   let weekOffset = 0;
   let draft = blankRecord(selectedDate);
   let saveTimer = null;
+  let pendingChanges = false;
+  let saveQueue = Promise.resolve(true);
+  let editVersion = 0;
+  let loadRequest = 0;
+  let renderRequest = 0;
 
   function dateKey(d) {
     const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), day = String(d.getDate()).padStart(2, "0");
@@ -114,42 +119,76 @@
   }
   function hasPeriodData(p) { return p.mood !== null || p.urge !== null; }
   async function loadDate(key) {
-    await flushSave();
-    selectedDate = key;
-    draft = await getRecord(key);
-    draft.morning ||= { mood:null, urge:null };
-    draft.evening ||= { mood:null, urge:null };
-    draft.comment ||= "";
-    renderInputs();
-    $("saveStatus").textContent = "記録はこのiPhone内に保存されます。";
+    const request = ++loadRequest;
+    if (!(await flushSave())) {
+      $("recordDate").value = selectedDate;
+      $("saveStatus").textContent = "保存に失敗したため、日付を切り替えませんでした。";
+      return false;
+    }
+    try {
+      const record = await getRecord(key);
+      if (request !== loadRequest) return false;
+      selectedDate = key;
+      draft = record;
+      draft.morning ||= { mood: null, urge: null };
+      draft.evening ||= { mood: null, urge: null };
+      draft.comment ||= "";
+      renderInputs();
+      $("saveStatus").textContent = "記録はこのiPhone内に保存されます。";
+      return true;
+    } catch (error) {
+      $("saveStatus").textContent = "記録を読み込めませんでした。";
+      console.error(error);
+      return false;
+    }
   }
   function scheduleSave() {
+    pendingChanges = true;
+    editVersion++;
     $("saveStatus").textContent = "変更を保存中…";
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => saveDraft(false), 350);
+    saveTimer = setTimeout(() => { void saveDraft(false); }, 350);
   }
   async function saveDraft(showMessage = true) {
     clearTimeout(saveTimer);
     saveTimer = null;
     draft.comment = $("dailyComment").value.slice(0, 500);
-    const empty = !hasPeriodData(draft.morning) && !hasPeriodData(draft.evening) && !draft.comment.trim();
-    try {
+    const snapshot = structuredClone(draft);
+    const version = editVersion;
+    const empty = !hasPeriodData(snapshot.morning) && !hasPeriodData(snapshot.evening) && !snapshot.comment.trim();
+    pendingChanges = false;
+    const job = saveQueue.then(async () => {
       if (empty) {
-        await deleteRecord(selectedDate);
-        draft.updatedAt = null;
+        await deleteRecord(snapshot.date);
       } else {
-        draft.updatedAt = new Date().toISOString();
-        await putRecord(structuredClone(draft));
+        snapshot.updatedAt = new Date().toISOString();
+        await putRecord(snapshot);
       }
-      $("saveStatus").textContent = showMessage ? "保存しました。" : "変更を保存しました。";
-      await renderWeek();
-      renderInputs();
-    } catch (e) {
-      $("saveStatus").textContent = "保存できませんでした。CSV書き出しやブラウザ設定を確認してください。";
-      console.error(e);
+      return true;
+    });
+    saveQueue = job.catch(error => {
+      console.error(error);
+      return false;
+    });
+    const ok = await saveQueue;
+    if (!ok) {
+      if (selectedDate === snapshot.date) {
+        pendingChanges = true;
+        $("saveStatus").textContent = "保存できませんでした。再度「保存」を押してください。";
+      }
+      return false;
     }
+    if (selectedDate === snapshot.date && editVersion === version && !pendingChanges) {
+      draft.updatedAt = empty ? null : snapshot.updatedAt;
+      $("saveStatus").textContent = showMessage ? "保存しました。" : "変更を保存しました。";
+    }
+    await renderWeek();
+    return true;
   }
-  async function flushSave() { if (saveTimer) await saveDraft(false); }
+  async function flushSave() {
+    if (saveTimer || pendingChanges) return saveDraft(false);
+    return saveQueue;
+  }
   function dayCell(v, type) {
     return v === null || v === undefined ? "—" : valueLabel(v, type);
   }
@@ -167,8 +206,10 @@ async function renderWeek() {
   );
   const start = dateKey(startDate);
   const end = shiftDate(start, 6);
-  $("weekRange").textContent = `${fmt(start)} 〜 ${fmt(end)}（水〜火）`;    
-    const all = await getAllRecords();
+  const request = ++renderRequest;
+  const all = await getAllRecords();
+  if (request !== renderRequest) return;
+  $("weekRange").textContent = `${fmt(start)} 〜 ${fmt(end)}（水〜火）`;
     const map = new Map(all.map(r => [r.date, r]));
     const rows = [];
     for (let i = 0; i < 7; i++) {
@@ -215,14 +256,24 @@ async function renderWeek() {
     ];
     series.forEach(s => {
       ctx.strokeStyle=s.color; ctx.fillStyle=s.color; ctx.lineWidth=2; ctx.lineJoin="round";
-      let started=false;
-      records.forEach((r,i) => {
+      let started = false;
+      ctx.beginPath();
+      records.forEach((r, i) => {
         const val = r[s.key]?.[type];
-        if (val === null || val === undefined) { started=false; return; }
-        if (!started) { ctx.beginPath(); ctx.moveTo(x(i),y(val)); started=true; }
-        else ctx.lineTo(x(i),y(val));
+        if (!Number.isFinite(val)) {
+          if (started) ctx.stroke();
+          ctx.beginPath();
+          started = false;
+          return;
+        }
+        if (!started) {
+          ctx.moveTo(x(i), y(val));
+          started = true;
+        } else {
+          ctx.lineTo(x(i), y(val));
+        }
       });
-      ctx.stroke();
+      if (started) ctx.stroke();
       records.forEach((r,i) => {
         const val = r[s.key]?.[type];
         if (val === null || val === undefined) return;
@@ -233,14 +284,17 @@ async function renderWeek() {
     records.forEach((r,i) => ctx.fillText(fmt(r.date,{month:"numeric",day:"numeric"}), x(i), h-bottom+8));
     ctx.textAlign="left";
     ctx.fillStyle="#477d72"; ctx.fillRect(left,3,8,8); ctx.fillStyle="#505653"; ctx.fillText("午前",left+12,2);
-    ctx.fillStyle="#b77b58"; ctx.fillRect(left+43,3,8,8); ctx.fillStyle="#505653"; ctx.fillText("午後",left+55,2);
+    ctx.fillStyle="#b77b58"; ctx.fillRect(left+55,3,8,8); ctx.fillStyle="#505653"; ctx.fillText("午後",left+67,2);
   }
   function csvEscape(value) {
     const s = String(value ?? "");
     return `"${s.replace(/"/g, '""')}"`;
   }
   async function exportCSV() {
-    await flushSave();
+    if (!(await flushSave())) {
+      $("dataStatus").textContent = "未保存の変更があるため、CSV書き出しを中止しました。";
+      return;
+    }
     const records = (await getAllRecords()).sort((a,b)=>a.date.localeCompare(b.date));
     const header = ["date","morning_mood","morning_urge","evening_mood","evening_urge","comment","updated_at"];
     const lines = [header.map(csvEscape).join(",")];
@@ -252,7 +306,7 @@ async function renderWeek() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url; a.download = `mood-urge-records-${dateKey(new Date())}.csv`;
-    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
     $("dataStatus").textContent = `${records.length}日分のCSVを書き出しました。`;
   }
   function parseCSV(text) {
@@ -273,39 +327,63 @@ async function renderWeek() {
     if(cell.length || row.length){row.push(cell.replace(/\r$/,""));rows.push(row);}
     return rows;
   }
+  function putRecords(records) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, "readwrite");
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error || new Error("CSVの保存に失敗しました。"));
+      tx.onabort = () => reject(tx.error || new Error("CSVの保存が中断されました。"));
+      const store = tx.objectStore(STORE);
+      records.forEach(record => store.put(record));
+    });
+  }
   async function importCSV(file) {
-    const text = (await file.text()).replace(/^\uFEFF/,"");
+    const text = (await file.text()).replace(/^\uFEFF/, "");
     const rows = parseCSV(text);
-    if(rows.length < 2) throw new Error("CSVに読み込める記録がありません。");
-    const headers = rows[0].map(s=>s.trim());
-    const required = ["date","morning_mood","morning_urge","evening_mood","evening_urge","comment"];
-    if(!required.every(h=>headers.includes(h))) throw new Error("CSVの列名が想定と異なります。アプリから書き出したCSVを選んでください。");
-    const index = Object.fromEntries(headers.map((h,i)=>[h,i]));
-    let count=0;
-    for(const row of rows.slice(1)){
-      if(!row[index.date] || !/^\d{4}-\d{2}-\d{2}$/.test(row[index.date])) continue;
-      const numberOrNull = (s,min,max) => {
-        if(s === "" || s === undefined) return null;
-        const n=Number(s); return Number.isInteger(n) && n>=min && n<=max ? n : null;
-      };
-      const r = {
-        date:row[index.date],
-        morning:{mood:numberOrNull(row[index.morning_mood],-3,3),urge:numberOrNull(row[index.morning_urge],0,3)},
-        evening:{mood:numberOrNull(row[index.evening_mood],-3,3),urge:numberOrNull(row[index.evening_urge],0,3)},
-        comment:row[index.comment] || "",
-        updatedAt: row[index.updated_at] || new Date().toISOString()
-      };
-      await putRecord(r); count++;
+    if (rows.length < 2) throw new Error("CSVに読み込める記録がありません。");
+    const headers = rows[0].map(s => s.trim());
+    const required = ["date", "morning_mood", "morning_urge", "evening_mood", "evening_urge", "comment"];
+    if (!required.every(h => headers.includes(h))) {
+      throw new Error("CSVの列名が想定と異なります。アプリから書き出したCSVを選んでください。");
     }
-    $("dataStatus").textContent = `${count}日分を読み込みました。同じ日付の記録はCSVの内容で上書きされます。`;
-    await loadDate(selectedDate); await renderWeek();
+    const index = Object.fromEntries(headers.map((h, i) => [h, i]));
+    const numberOrNull = (s, min, max) => {
+      if (s === "" || s === undefined) return null;
+      const n = Number(s);
+      if (!Number.isInteger(n) || n < min || n > max) throw new Error("CSVに範囲外の数値があります。");
+      return n;
+    };
+    const records = [];
+    for (const row of rows.slice(1)) {
+      if (row.every(cell => cell === "")) continue;
+      if (row.length !== headers.length) throw new Error("CSVの列数が一致しません。");
+      const date = row[index.date];
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || dateKey(fromKey(date)) !== date) {
+        throw new Error("CSVに不正な日付があります。");
+      }
+      const comment = row[index.comment] || "";
+      if (comment.length > 500) throw new Error("CSVに500文字を超えるコメントがあります。");
+      records.push({
+        date,
+        morning: { mood: numberOrNull(row[index.morning_mood], -3, 3), urge: numberOrNull(row[index.morning_urge], 0, 3) },
+        evening: { mood: numberOrNull(row[index.evening_mood], -3, 3), urge: numberOrNull(row[index.evening_urge], 0, 3) },
+        comment,
+        updatedAt: row[index.updated_at] || new Date().toISOString()
+      });
+    }
+    if (!records.length) throw new Error("CSVに読み込める記録がありません。");
+    if (!(await flushSave())) throw new Error("編集中の記録が保存できないため、CSVの読み込みを中止しました。");
+    await putRecords(records);
+    $("dataStatus").textContent = `${records.length}日分を読み込みました。同じ日付の記録はCSVの内容で上書きされます。`;
+    await loadDate(selectedDate);
+    await renderWeek();
   }
   function setupEvents() {
     $("recordDate").addEventListener("change", e => e.target.value && loadDate(e.target.value));
     $("prevDay").addEventListener("click", () => loadDate(shiftDate(selectedDate,-1)));
     $("nextDay").addEventListener("click", () => loadDate(shiftDate(selectedDate,1)));
-    $("todayBtn").addEventListener("click", () => { weekOffset=0; loadDate(dateKey(new Date())); renderWeek(); });
-    $("dailyComment").addEventListener("input", () => { $("commentCount").textContent = `${$("dailyComment").value.length} / 500`; scheduleSave(); });
+    $("todayBtn").addEventListener("click", async () => { if (await loadDate(dateKey(new Date()))) { weekOffset = 0; await renderWeek(); } });
+    $("dailyComment").addEventListener("input", () => { draft.comment = $("dailyComment").value.slice(0, 500); $("commentCount").textContent = `${draft.comment.length} / 500`; scheduleSave(); });
     $("saveBtn").addEventListener("click", () => saveDraft(true));
     $("weekPrev").addEventListener("click", async () => { weekOffset--; await renderWeek(); });
 $("weekNext").addEventListener("click", async () => { weekOffset++; await renderWeek(); });
@@ -318,11 +396,14 @@ $("weekNext").addEventListener("click", async () => { weekOffset++; await render
     });window.addEventListener("resize", () => renderWeek());
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") {
-    flushSave();
+    void flushSave();
   } else if (document.visibilityState === "visible") {
-    weekOffset = 0;
-    loadDate(dateKey(new Date()));
-    renderWeek();
+    void (async () => {
+      if (await loadDate(dateKey(new Date()))) {
+        weekOffset = 0;
+        await renderWeek();
+      }
+    })();
   }
 });
   }
